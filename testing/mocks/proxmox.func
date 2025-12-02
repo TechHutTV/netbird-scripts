@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Mock Proxmox commands - Simulates PVE CLI tools for testing
+# =============================================================================
+# This file provides mock implementations of Proxmox VE commands:
+#   - pveversion, pvesh, pvesm, pveam, pct
+#
+# Usage: Source this file before running tests that use the main script
+# =============================================================================
+
+# Track function calls for testing
+export MOCK_PVE_CALLS=()
+export MOCK_MODE="${MOCK_MODE:-test}"
+
+# Mock Proxmox state
+export MOCK_PVE_VERSION="${MOCK_PVE_VERSION:-8.1.4}"
+export MOCK_NEXT_VMID="${MOCK_NEXT_VMID:-100}"
+export MOCK_CONTAINER_STORAGE="${MOCK_CONTAINER_STORAGE:-local-lvm}"
+export MOCK_TEMPLATE_STORAGE="${MOCK_TEMPLATE_STORAGE:-local}"
+export MOCK_TEMPLATE_NAME="${MOCK_TEMPLATE_NAME:-debian-12-standard_12.2-1_amd64.tar.zst}"
+export MOCK_CONTAINER_IP="${MOCK_CONTAINER_IP:-192.168.1.100}"
+export MOCK_NETBIRD_IP="${MOCK_NETBIRD_IP:-100.64.0.1/16}"
+export MOCK_NETBIRD_FQDN="${MOCK_NETBIRD_FQDN:-netbird.example.com}"
+
+# Track created containers
+declare -A MOCK_CONTAINERS
+
+# Mock pveversion
+pveversion() {
+    MOCK_PVE_CALLS+=("pveversion: $*")
+    if [[ "$*" == "--verbose" ]]; then
+        echo "pve-manager/${MOCK_PVE_VERSION}/d9e80adb (running kernel: 6.2.16-3-pve)"
+        echo "proxmox-ve: 8.0.2"
+        echo "pve-kernel-6.2: 8.0.2"
+    else
+        echo "pve-manager/${MOCK_PVE_VERSION}/d9e80adb"
+    fi
+    return 0
+}
+
+# Mock pvesh
+pvesh() {
+    MOCK_PVE_CALLS+=("pvesh: $*")
+    case "$*" in
+        "get /cluster/nextid")
+            echo "$MOCK_NEXT_VMID"
+            ;;
+        *)
+            if [[ "$MOCK_MODE" == "verbose" ]]; then
+                echo "[MOCK] pvesh $*"
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# Mock pvesm
+pvesm() {
+    MOCK_PVE_CALLS+=("pvesm: $*")
+    case "$1" in
+        status)
+            if [[ "$*" == *"-content rootdir"* ]]; then
+                echo "Name         Type     Status           Total            Used       Available        %"
+                echo "${MOCK_CONTAINER_STORAGE}  lvmthin  active       107321548800     21454692352     85866856448   20.00%"
+            elif [[ "$*" == *"-content vztmpl"* ]]; then
+                echo "Name         Type     Status           Total            Used       Available        %"
+                echo "${MOCK_TEMPLATE_STORAGE}  dir      active       107321548800     21454692352     85866856448   20.00%"
+            else
+                echo "Name         Type     Status           Total            Used       Available        %"
+                echo "${MOCK_TEMPLATE_STORAGE}  dir      active       107321548800     21454692352     85866856448   20.00%"
+                echo "${MOCK_CONTAINER_STORAGE}  lvmthin  active       107321548800     21454692352     85866856448   20.00%"
+            fi
+            ;;
+        *)
+            if [[ "$MOCK_MODE" == "verbose" ]]; then
+                echo "[MOCK] pvesm $*"
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# Mock pveam
+pveam() {
+    MOCK_PVE_CALLS+=("pveam: $*")
+    case "$1" in
+        update)
+            # Silently succeed
+            return 0
+            ;;
+        available)
+            echo "system          debian-12-standard_12.2-1_amd64.tar.zst"
+            echo "system          debian-11-standard_11.7-1_amd64.tar.zst"
+            ;;
+        list)
+            # Check if template is "downloaded"
+            if [[ "${MOCK_TEMPLATE_DOWNLOADED:-true}" == "true" ]]; then
+                echo "${MOCK_TEMPLATE_STORAGE}:vztmpl/${MOCK_TEMPLATE_NAME}  ${MOCK_TEMPLATE_NAME}"
+            fi
+            ;;
+        download)
+            MOCK_PVE_CALLS+=("pveam download: $2 $3")
+            MOCK_TEMPLATE_DOWNLOADED="true"
+            return 0
+            ;;
+        *)
+            if [[ "$MOCK_MODE" == "verbose" ]]; then
+                echo "[MOCK] pveam $*"
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# Mock pct
+pct() {
+    MOCK_PVE_CALLS+=("pct: $*")
+    local cmd="$1"
+    shift
+
+    case "$cmd" in
+        create)
+            local vmid="$1"
+            MOCK_PVE_CALLS+=("pct create: vmid=$vmid")
+            MOCK_CONTAINERS[$vmid]="created"
+            return 0
+            ;;
+        start)
+            local vmid="$1"
+            MOCK_PVE_CALLS+=("pct start: vmid=$vmid")
+            MOCK_CONTAINERS[$vmid]="running"
+            return 0
+            ;;
+        stop)
+            local vmid="$1"
+            MOCK_PVE_CALLS+=("pct stop: vmid=$vmid")
+            MOCK_CONTAINERS[$vmid]="stopped"
+            return 0
+            ;;
+        status)
+            local vmid="$1"
+            local status="${MOCK_CONTAINERS[$vmid]:-}"
+            if [[ -z "$status" ]]; then
+                return 1
+            fi
+            echo "status: $status"
+            return 0
+            ;;
+        exec)
+            local vmid="$1"
+            shift 2  # Skip vmid and --
+            local exec_cmd="$*"
+            MOCK_PVE_CALLS+=("pct exec $vmid: $exec_cmd")
+
+            # Handle specific commands
+            if [[ "$exec_cmd" == *"ip -4 addr show eth0"* ]]; then
+                echo "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500"
+                echo "    inet ${MOCK_CONTAINER_IP}/24 brd 192.168.1.255 scope global eth0"
+            elif [[ "$exec_cmd" == *"apt update"* ]]; then
+                return 0
+            elif [[ "$exec_cmd" == *"netbird status"* ]]; then
+                echo "Daemon status: Connected"
+                echo "Management: Connected"
+                echo "Signal: Connected"
+                echo "Relays: 2/2 Available"
+                echo "NetBird IP: ${MOCK_NETBIRD_IP}"
+                echo "FQDN: ${MOCK_NETBIRD_FQDN}"
+                echo "Interface type: Kernel"
+            elif [[ "$exec_cmd" == *"netbird up"* ]]; then
+                return 0
+            elif [[ "$exec_cmd" == *"netbird login"* ]]; then
+                echo "Please open the following URL in your browser:"
+                echo "https://app.netbird.io/login?setupKey=mock-key"
+                return 0
+            elif [[ "$exec_cmd" == *"curl"* && "$exec_cmd" == *"netbird"* ]]; then
+                return 0
+            fi
+            return 0
+            ;;
+        enter)
+            local vmid="$1"
+            MOCK_PVE_CALLS+=("pct enter: vmid=$vmid")
+            return 0
+            ;;
+        *)
+            if [[ "$MOCK_MODE" == "verbose" ]]; then
+                echo "[MOCK] pct $cmd $*"
+            fi
+            ;;
+    esac
+    return 0
+}
+
+# Mock EUID for root check bypass
+# This should be set to 0 in tests: export EUID=0
+
+# Export all functions
+export -f pveversion pvesh pvesm pveam pct

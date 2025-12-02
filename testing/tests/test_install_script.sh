@@ -6,7 +6,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../mocks/install.func"
+
+# Export test mode and mock paths
+export TEST_MODE="true"
+export MOCK_INSTALL_FUNC="${SCRIPT_DIR}/../mocks/install.func"
+export PROJECT_ROOT="${PROJECT_ROOT:-${SCRIPT_DIR}/../..}"
+
+# Source the mock for direct function testing
+source "${MOCK_INSTALL_FUNC}"
 
 # Test counter
 PASSED=0
@@ -190,6 +197,42 @@ test_install_script_syntax() {
     fi
 }
 
+test_install_script_runs_with_mocks() {
+    echo "Testing: install script runs with mocks"
+
+    local install_script="${PROJECT_ROOT}/helper-scripts/install/netbird-install.sh"
+
+    if [[ ! -f "$install_script" ]]; then
+        echo "SKIPPED: Install script not found"
+        return
+    fi
+
+    # Run the script with test mode and capture output
+    local output
+    local exit_code=0
+    output=$(TEST_MODE=true MOCK_INSTALL_FUNC="${MOCK_INSTALL_FUNC}" MOCK_MODE=silent bash "$install_script" 2>&1) || exit_code=$?
+
+    # Script should complete successfully (exit 0)
+    if [[ $exit_code -eq 0 ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        echo "FAILED: Install script exited with code $exit_code"
+        echo "Output: $output"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    # Verify expected output patterns that indicate the script ran correctly
+    # Accept: Installing/Installed messages, NetBird mock output, or empty (silent mode)
+    if [[ "$output" == *"Installing"* ]] || [[ "$output" == *"Installed"* ]] || [[ "$output" == *"NetBird"* ]] || [[ -z "$output" ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        echo "FAILED: Unexpected output from install script"
+        echo "Output: $output"
+        FAILED=$((FAILED + 1))
+    fi
+}
+
 # =============================================================================
 # Run Tests
 # =============================================================================
@@ -206,6 +249,7 @@ test_setting_up_container
 test_mock_apt_get
 test_mock_systemctl
 test_install_script_syntax
+test_install_script_runs_with_mocks
 
 echo ""
 echo "Install script tests: $PASSED passed, $FAILED failed"

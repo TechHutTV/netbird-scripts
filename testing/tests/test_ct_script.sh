@@ -6,7 +6,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../mocks/build.func"
+
+# Export test mode and mock paths
+export TEST_MODE="true"
+export MOCK_BUILD_FUNC="${SCRIPT_DIR}/../mocks/build.func"
+export PROJECT_ROOT="${PROJECT_ROOT:-${SCRIPT_DIR}/../..}"
+
+# Source the mock for direct function testing
+source "${MOCK_BUILD_FUNC}"
 
 # Test counter
 PASSED=0
@@ -258,6 +265,47 @@ test_ct_script_sources_build_func() {
     fi
 }
 
+test_ct_script_runs_with_mocks() {
+    echo "Testing: ct script runs with mocks"
+
+    local ct_script="${PROJECT_ROOT}/helper-scripts/ct/netbird.sh"
+
+    if [[ ! -f "$ct_script" ]]; then
+        echo "SKIPPED: CT script not found"
+        return
+    fi
+
+    # Run the script with test mode and capture output
+    local output
+    local exit_code=0
+    output=$(TEST_MODE=true MOCK_BUILD_FUNC="${MOCK_BUILD_FUNC}" MOCK_MODE=silent bash "$ct_script" 2>&1) || exit_code=$?
+
+    # Script should complete successfully (exit 0)
+    if [[ $exit_code -eq 0 ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        echo "FAILED: CT script exited with code $exit_code"
+        echo "Output: $output"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    # Verify expected output patterns that indicate the script ran correctly
+    if [[ "$output" == *"setup has been successfully initialized"* ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        echo "FAILED: Expected success message not found in output"
+        FAILED=$((FAILED + 1))
+    fi
+
+    if [[ "$output" == *"netbird up"* ]]; then
+        PASSED=$((PASSED + 1))
+    else
+        echo "FAILED: Expected 'netbird up' instruction not found"
+        FAILED=$((FAILED + 1))
+    fi
+}
+
 # =============================================================================
 # Run Tests
 # =============================================================================
@@ -278,6 +326,7 @@ test_ct_script_exists
 test_ct_script_has_required_variables
 test_ct_script_has_update_function
 test_ct_script_sources_build_func
+test_ct_script_runs_with_mocks
 
 echo ""
 echo "CT script tests: $PASSED passed, $FAILED failed"

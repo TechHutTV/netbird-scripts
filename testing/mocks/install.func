@@ -21,14 +21,10 @@ export CL="\033[m"
 export TAB="  "
 export INFO="${TAB}[INFO] "
 
-# Standard output wrapper
-STD() {
-    if [[ "$MOCK_MODE" == "verbose" ]]; then
-        "$@"
-    else
-        "$@" >/dev/null 2>&1
-    fi
-}
+# Standard output wrapper - used as $STD command in scripts
+# In test mode, we make it empty so commands run normally but output is captured
+# The real community-scripts uses this to redirect output
+STD=""
 export STD
 
 # Message functions
@@ -157,4 +153,4 @@ export -f msg_info msg_ok msg_warn msg_error
 export -f color verb_ip6 catch_errors
 export -f setting_up_container network_check update_os
 export -f motd_ssh customize
-export -f apt-get curl systemctl STD
+export -f apt-get curl systemctl

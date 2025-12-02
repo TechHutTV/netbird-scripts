@@ -5,7 +5,12 @@
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 # Source: https://netbird.io/
 
-source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
+# Support test mode by allowing local mock to be sourced instead of FUNCTIONS_FILE_PATH
+if [[ "${TEST_MODE:-}" == "true" ]] && [[ -n "${MOCK_INSTALL_FUNC:-}" ]]; then
+    source "$MOCK_INSTALL_FUNC"
+else
+    source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
+fi
 color
 verb_ip6
 catch_errors
