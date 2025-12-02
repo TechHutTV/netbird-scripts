@@ -531,26 +531,19 @@ connect_netbird_sso() {
     echo ""
     echo -e "${BOLD}SSO Authentication${NC}"
     echo "─────────────────────────────────────────"
-    echo "A login URL will be displayed below."
+    echo "A login URL will appear below."
     echo "Copy the URL and open it in your browser to authenticate."
     echo ""
-
-    msg_info "Starting Netbird SSO login..."
-
-    # Run netbird login and capture the URL output
-    # netbird login outputs the URL to stderr, so we capture it
-    local login_output
-    login_output=$(pct exec "$vmid" -- netbird login 2>&1) || true
-
-    # Display the URL for the user
+    echo -e "${YELLOW}Waiting for login URL (this may take a few seconds)...${NC}"
     echo ""
-    echo -e "${CYAN}${login_output}${NC}"
+
+    # Run netbird login directly without command substitution
+    # This allows the URL to stream to the terminal in real-time
+    # The command will block until authentication is complete in the browser
+    pct exec "$vmid" -- netbird login 2>&1 || true
+
     echo ""
-    echo "─────────────────────────────────────────"
-    echo -e "${YELLOW}Copy the URL above and open it in your browser.${NC}"
-    echo "Complete the authentication, then return here."
-    echo ""
-    read -rp "Press Enter after completing SSO authentication..."
+    msg_ok "SSO authentication completed"
 
     msg_info "Connecting to Netbird network..."
 
