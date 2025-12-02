@@ -14,7 +14,7 @@ network_check
 update_os
 
 msg_info "Installing Dependencies"
-$STD apt-get install -y \
+$STD apt install -y \
     curl \
     ca-certificates \
     gnupg
@@ -26,11 +26,11 @@ curl -sSL https://pkgs.netbird.io/debian/public.key \
 chmod 0644 /usr/share/keyrings/netbird-archive-keyring.gpg
 echo 'deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pkgs.netbird.io/debian stable main' \
     | tee /etc/apt/sources.list.d/netbird.list > /dev/null
-$STD apt-get update
+$STD apt update
 msg_ok "Set up NetBird Repository"
 
 msg_info "Installing NetBird"
-$STD apt-get install -y netbird
+$STD apt install -y netbird
 msg_ok "Installed NetBird"
 
 msg_info "Enabling NetBird Service"
@@ -43,6 +43,6 @@ motd_ssh
 customize
 
 msg_info "Cleaning up"
-$STD apt-get -y autoremove
-$STD apt-get -y autoclean
+$STD apt -y autoremove
+$STD apt -y autoclean
 msg_ok "Cleaned"

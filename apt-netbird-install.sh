@@ -3,17 +3,17 @@
 # Simplified from: https://pkgs.netbird.io/install.sh
 set -e
 
-# Check if apt-get is available
-if ! command -v apt-get > /dev/null; then
-    echo "Error: apt-get not found. This script is for Debian/Ubuntu systems only."
+# Check if apt is available
+if ! command -v apt > /dev/null; then
+    echo "Error: apt not found. This script is for Debian/Ubuntu systems only."
     exit 1
 fi
 
 echo "Installing NetBird using apt package manager..."
 
 # Install dependencies
-apt-get update
-apt-get install ca-certificates curl gnupg -y
+apt update
+apt install ca-certificates curl gnupg -y
 
 # Add NetBird GPG key
 curl -sSL https://pkgs.netbird.io/debian/public.key \
@@ -26,8 +26,8 @@ echo 'deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pk
     | tee /etc/apt/sources.list.d/netbird.list
 
 # Update and install NetBird
-apt-get update
-apt-get install netbird -y
+apt update
+apt install netbird -y
 
 # Save installation method to config
 mkdir -p /etc/netbird

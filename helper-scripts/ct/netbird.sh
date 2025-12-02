@@ -32,8 +32,8 @@ function update_script() {
     fi
 
     msg_info "Updating ${APP}"
-    $STD apt-get update
-    $STD apt-get -y upgrade
+    $STD apt update
+    $STD apt -y upgrade
     msg_ok "Updated Successfully"
     exit
 }

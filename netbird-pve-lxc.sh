@@ -493,14 +493,14 @@ setup_netbird() {
     local vmid="$1"
 
     msg_info "Updating container packages (this may take a few minutes)..."
-    if ! pct exec "$vmid" -- bash -c "apt-get update && apt-get upgrade -y" &>/dev/null; then
+    if ! pct exec "$vmid" -- bash -c "apt update && apt upgrade -y" &>/dev/null; then
         msg_error "Failed to update container packages!"
         exit 1
     fi
     msg_ok "Container packages updated"
 
     msg_info "Installing dependencies..."
-    if ! pct exec "$vmid" -- bash -c "apt-get install -y ca-certificates curl gnupg" &>/dev/null; then
+    if ! pct exec "$vmid" -- bash -c "apt install -y ca-certificates curl gnupg" &>/dev/null; then
         msg_error "Failed to install dependencies!"
         exit 1
     fi
@@ -521,7 +521,7 @@ setup_netbird() {
     msg_ok "NetBird repository added"
 
     msg_info "Installing NetBird..."
-    if ! pct exec "$vmid" -- bash -c "apt-get update && apt-get install -y netbird" &>/dev/null; then
+    if ! pct exec "$vmid" -- bash -c "apt update && apt install -y netbird" &>/dev/null; then
         msg_error "Failed to install NetBird!"
         exit 1
     fi
