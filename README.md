@@ -14,12 +14,6 @@ Run this command on your Proxmox VE host:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/TechHutTV/netbird-scripts/main/netbird-pve-lxc.sh)"
 ```
 
-Or using wget:
-
-```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/TechHutTV/netbird-scripts/main/netbird-pve-lxc.sh)"
-```
-
 ### Default Container Specs
 
 | Setting | Default |
