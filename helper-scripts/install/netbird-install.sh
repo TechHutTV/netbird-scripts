@@ -13,6 +13,15 @@ setting_up_container
 network_check
 update_os
 
+echo ""
+echo '  _   _      _   ____  _         _   _     __   _______ '
+echo ' | \ | |    | | |  _ \(_)       | | | |    \ \ / / ____|'
+echo ' |  \| | ___| |_| |_) |_ _ __ __| | | |     \ V / |     '
+echo ' | . ` |/ _ \ __|  _ <| | '\''__/ _` | | |      > <| |     '
+echo ' | |\  |  __/ |_| |_) | | | | (_| | | |____ / . \ |____ '
+echo ' |_| \_|\___|\__|____/|_|_|  \__,_| |______/_/ \_\_____|'
+echo ""
+
 msg_info "Installing Dependencies"
 $STD apt install -y \
     curl \
