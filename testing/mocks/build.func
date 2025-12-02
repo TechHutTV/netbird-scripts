@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Mock build.func - Simulates community-scripts build.func for testing
+# =============================================================================
+# This file provides mock implementations of the helper functions from
+# https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func
+#
+# Usage: Source this file instead of the remote build.func for local testing
+# =============================================================================
+
+# Track function calls for testing
+export MOCK_CALLS=()
+export MOCK_MODE="${MOCK_MODE:-test}"  # test, verbose, or silent
+
+# Color definitions (same as production)
+export YW="\033[33m"
+export BL="\033[36m"
+export RD="\033[31m"
+export GN="\033[32m"
+export CL="\033[m"
+export BGN="\033[4;92m"
+export BFR="\\r\\033[K"
+export HOLD="-"
+export TAB="  "
+export GATEWAY=" "
+export INFO="${TAB}[INFO] "
+export CREATING="${TAB}[CREATING] "
+
+# Standard output wrapper (silent in test mode)
+STD() {
+    if [[ "$MOCK_MODE" == "verbose" ]]; then
+        "$@"
+    else
+        "$@" >/dev/null 2>&1
+    fi
+}
+export STD
+
+# Message functions
+msg_info() {
+    local msg="$1"
+    MOCK_CALLS+=("msg_info: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}${msg}${CL}"
+    fi
+}
+
+msg_ok() {
+    local msg="$1"
+    MOCK_CALLS+=("msg_ok: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${GN}${msg}${CL}"
+    fi
+}
+
+msg_warn() {
+    local msg="$1"
+    MOCK_CALLS+=("msg_warn: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}WARNING: ${msg}${CL}"
+    fi
+}
+
+msg_error() {
+    local msg="$1"
+    MOCK_CALLS+=("msg_error: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${RD}ERROR: ${msg}${CL}"
+    fi
+}
+
+# Header function
+header_info() {
+    local app="${1:-NetBird}"
+    MOCK_CALLS+=("header_info: $app")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${BL}
+    _   __     __  ____  _          __
+   / | / /__  / /_/ __ )(_)________/ /
+  /  |/ / _ \/ __/ __  / / ___/ __  /
+ / /|  /  __/ /_/ /_/ / / /  / /_/ /
+/_/ |_/\___/\__/_____/_/_/   \__,_/
+${CL}"
+    fi
+}
+
+# Variables function - sets up default variables
+variables() {
+    MOCK_CALLS+=("variables")
+    export NSAPP="${APP,,}"
+    export var_install="${NSAPP}-install"
+    export CTID="${CTID:-100}"
+    export HN="${HN:-$NSAPP}"
+    export DISK_SIZE="${var_disk:-4}"
+    export CORE_COUNT="${var_cpu:-1}"
+    export RAM_SIZE="${var_ram:-512}"
+    export BRG="${BRG:-vmbr0}"
+    export NET="${NET:-dhcp}"
+    export GATE="${GATE:-}"
+    export APT_CACHER="${APT_CACHER:-}"
+    export APT_CACHER_IP="${APT_CACHER_IP:-}"
+    export DISABLEIP6="${DISABLEIP6:-no}"
+    export MTU="${MTU:-}"
+    export SD="${SD:-}"
+    export NS="${NS:-}"
+    export MAC="${MAC:-}"
+    export VLAN="${VLAN:-}"
+    export SSH="${SSH:-no}"
+    export VERB="${VERB:-no}"
+    export FEATURES="${FEATURES:-nesting=1}"
+}
+
+# Color function - ensures colors are set
+color() {
+    MOCK_CALLS+=("color")
+    # Colors already exported above
+}
+
+# Catch errors function
+catch_errors() {
+    MOCK_CALLS+=("catch_errors")
+    set -Eeuo pipefail
+    trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
+}
+
+error_handler() {
+    local lineno="$1"
+    local cmd="$2"
+    MOCK_CALLS+=("error_handler: line $lineno, command: $cmd")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        msg_error "Error in command '$cmd' at line $lineno"
+    fi
+}
+
+# Container check functions
+check_container_storage() {
+    MOCK_CALLS+=("check_container_storage")
+    return 0
+}
+
+check_container_resources() {
+    MOCK_CALLS+=("check_container_resources")
+    return 0
+}
+
+# Build/start functions (no-ops for testing)
+start() {
+    MOCK_CALLS+=("start")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}Starting container setup...${CL}"
+    fi
+}
+
+build_container() {
+    MOCK_CALLS+=("build_container")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}Building container (mock)...${CL}"
+    fi
+}
+
+description() {
+    MOCK_CALLS+=("description")
+}
+
+# Export all functions
+export -f msg_info msg_ok msg_warn msg_error header_info
+export -f variables color catch_errors error_handler
+export -f check_container_storage check_container_resources
+export -f start build_container description STD

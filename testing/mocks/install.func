@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Mock install.func - Simulates the FUNCTIONS_FILE_PATH for install scripts
+# =============================================================================
+# This file provides mock implementations of the functions that are normally
+# sourced via FUNCTIONS_FILE_PATH in install scripts.
+#
+# Usage: Export FUNCTIONS_FILE_PATH to point to this file before running tests
+# =============================================================================
+
+# Track function calls for testing
+export MOCK_INSTALL_CALLS=()
+export MOCK_MODE="${MOCK_MODE:-test}"
+
+# Color definitions
+export YW="\033[33m"
+export BL="\033[36m"
+export RD="\033[31m"
+export GN="\033[32m"
+export CL="\033[m"
+export TAB="  "
+export INFO="${TAB}[INFO] "
+
+# Standard output wrapper
+STD() {
+    if [[ "$MOCK_MODE" == "verbose" ]]; then
+        "$@"
+    else
+        "$@" >/dev/null 2>&1
+    fi
+}
+export STD
+
+# Message functions
+msg_info() {
+    local msg="$1"
+    MOCK_INSTALL_CALLS+=("msg_info: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}${msg}${CL}"
+    fi
+}
+
+msg_ok() {
+    local msg="$1"
+    MOCK_INSTALL_CALLS+=("msg_ok: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${GN}${msg}${CL}"
+    fi
+}
+
+msg_warn() {
+    local msg="$1"
+    MOCK_INSTALL_CALLS+=("msg_warn: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}WARNING: ${msg}${CL}"
+    fi
+}
+
+msg_error() {
+    local msg="$1"
+    MOCK_INSTALL_CALLS+=("msg_error: $msg")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${RD}ERROR: ${msg}${CL}"
+    fi
+}
+
+# Color function
+color() {
+    MOCK_INSTALL_CALLS+=("color")
+}
+
+# IPv6 verbosity function
+verb_ip6() {
+    MOCK_INSTALL_CALLS+=("verb_ip6")
+}
+
+# Catch errors function
+catch_errors() {
+    MOCK_INSTALL_CALLS+=("catch_errors")
+    set -Eeuo pipefail
+}
+
+# Container setup function
+setting_up_container() {
+    MOCK_INSTALL_CALLS+=("setting_up_container")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}Setting up container environment...${CL}"
+    fi
+}
+
+# Network check function
+network_check() {
+    MOCK_INSTALL_CALLS+=("network_check")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}Checking network connectivity...${CL}"
+    fi
+    # In mock mode, we can optionally fail this
+    if [[ "${MOCK_NETWORK_FAIL:-}" == "true" ]]; then
+        msg_error "Network check failed"
+        return 1
+    fi
+    return 0
+}
+
+# OS update function
+update_os() {
+    MOCK_INSTALL_CALLS+=("update_os")
+    if [[ "$MOCK_MODE" != "silent" ]]; then
+        echo -e "${INFO}${YW}Updating OS packages (mock)...${CL}"
+    fi
+}
+
+# MOTD SSH function
+motd_ssh() {
+    MOCK_INSTALL_CALLS+=("motd_ssh")
+}
+
+# Customize function
+customize() {
+    MOCK_INSTALL_CALLS+=("customize")
+}
+
+# Mock apt-get for testing
+apt-get() {
+    MOCK_INSTALL_CALLS+=("apt-get: $*")
+    if [[ "$MOCK_MODE" != "silent" && "$MOCK_MODE" == "verbose" ]]; then
+        echo "[MOCK] apt-get $*"
+    fi
+    return 0
+}
+
+# Mock curl for testing
+curl() {
+    MOCK_INSTALL_CALLS+=("curl: $*")
+    if [[ "$MOCK_MODE" != "silent" && "$MOCK_MODE" == "verbose" ]]; then
+        echo "[MOCK] curl $*"
+    fi
+    # Simulate successful curl
+    if [[ "$*" == *"install.sh"* && "$*" == *"netbird"* ]]; then
+        echo "# Mock NetBird install script"
+        echo "echo 'NetBird installed (mock)'"
+    fi
+    return 0
+}
+
+# Mock systemctl for testing
+systemctl() {
+    MOCK_INSTALL_CALLS+=("systemctl: $*")
+    if [[ "$MOCK_MODE" != "silent" && "$MOCK_MODE" == "verbose" ]]; then
+        echo "[MOCK] systemctl $*"
+    fi
+    return 0
+}
+
+# Export all functions
+export -f msg_info msg_ok msg_warn msg_error
+export -f color verb_ip6 catch_errors
+export -f setting_up_container network_check update_os
+export -f motd_ssh customize
+export -f apt-get curl systemctl STD
