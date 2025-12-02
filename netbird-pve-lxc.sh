@@ -227,9 +227,93 @@ get_password() {
     msg_ok "Root password set"
 }
 
+# Get advanced container settings
+get_advanced_settings() {
+    local next_vmid="$1"
+
+    echo ""
+    echo -e "${BOLD}Advanced Settings${NC}"
+    echo "─────────────────────────────────────────"
+    echo "Press Enter to accept defaults shown in brackets."
+    echo ""
+
+    # VMID
+    read -rp "VMID [${next_vmid}]: " input_vmid
+    CONTAINER_VMID="${input_vmid:-$next_vmid}"
+
+    # Validate VMID is a number
+    if [[ ! "$CONTAINER_VMID" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid VMID! Must be a number."
+        exit 1
+    fi
+
+    # Check if VMID is already in use
+    if pct status "$CONTAINER_VMID" &>/dev/null; then
+        msg_error "VMID ${CONTAINER_VMID} is already in use!"
+        exit 1
+    fi
+
+    # Disk size
+    read -rp "Disk size in GB [${DEFAULT_STORAGE}]: " input_disk
+    CONTAINER_DISK="${input_disk:-$DEFAULT_STORAGE}"
+
+    if [[ ! "$CONTAINER_DISK" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid disk size! Must be a number."
+        exit 1
+    fi
+
+    # RAM
+    read -rp "RAM in MB [${DEFAULT_RAM}]: " input_ram
+    CONTAINER_RAM="${input_ram:-$DEFAULT_RAM}"
+
+    if [[ ! "$CONTAINER_RAM" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid RAM size! Must be a number."
+        exit 1
+    fi
+
+    # CPU cores
+    read -rp "CPU cores [${DEFAULT_CPU}]: " input_cpu
+    CONTAINER_CPU="${input_cpu:-$DEFAULT_CPU}"
+
+    if [[ ! "$CONTAINER_CPU" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid CPU count! Must be a number."
+        exit 1
+    fi
+
+    # Container type
+    echo ""
+    echo "Container type:"
+    echo "  1) Unprivileged (recommended, more secure)"
+    echo "  2) Privileged (less secure, but simpler device access)"
+    read -rp "Select type [1]: " input_type
+    input_type="${input_type:-1}"
+
+    case "$input_type" in
+        1)
+            CONTAINER_TYPE="unprivileged"
+            ;;
+        2)
+            CONTAINER_TYPE="privileged"
+            ;;
+        *)
+            msg_error "Invalid selection! Choose 1 or 2."
+            exit 1
+            ;;
+    esac
+
+    echo ""
+    msg_ok "Advanced settings configured"
+}
+
 # Display configuration summary
 show_summary() {
     local vmid="$1"
+
+    # Format container type for display
+    local type_display="Unprivileged"
+    if [[ "$CONTAINER_TYPE" == "privileged" ]]; then
+        type_display="Privileged"
+    fi
 
     echo ""
     echo -e "${BOLD}Configuration Summary${NC}"
@@ -237,11 +321,11 @@ show_summary() {
     echo -e "  VMID:        ${CYAN}${vmid}${NC}"
     echo -e "  Hostname:    ${CYAN}${HOSTNAME}${NC}"
     echo -e "  OS:          ${CYAN}Debian ${DEBIAN_VERSION}${NC}"
-    echo -e "  Storage:     ${CYAN}${DEFAULT_STORAGE} GB${NC}"
-    echo -e "  RAM:         ${CYAN}${DEFAULT_RAM} MB${NC}"
-    echo -e "  CPU:         ${CYAN}${DEFAULT_CPU} core(s)${NC}"
+    echo -e "  Disk:        ${CYAN}${CONTAINER_DISK} GB${NC}"
+    echo -e "  RAM:         ${CYAN}${CONTAINER_RAM} MB${NC}"
+    echo -e "  CPU:         ${CYAN}${CONTAINER_CPU} core(s)${NC}"
     echo -e "  Network:     ${CYAN}DHCP (${DEFAULT_BRIDGE})${NC}"
-    echo -e "  Type:        ${CYAN}Unprivileged${NC}"
+    echo -e "  Type:        ${CYAN}${type_display}${NC}"
     echo "═════════════════════════════════════════"
     echo ""
 
@@ -260,20 +344,29 @@ create_container() {
 
     msg_info "Creating LXC container (VMID: ${vmid})..."
 
-    # Build the pct create command
+    # Build the pct create command based on container type
+    local unprivileged_flag="1"
+    local features="nesting=1,keyctl=1"
+
+    if [[ "$CONTAINER_TYPE" == "privileged" ]]; then
+        unprivileged_flag="0"
+        features="nesting=1"
+    fi
+
+    # Run pct create and suppress verbose extraction output
     if ! pct create "$vmid" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$HOSTNAME" \
         --password "$ROOT_PASSWORD" \
         --ostype debian \
-        --cores "$DEFAULT_CPU" \
-        --memory "$DEFAULT_RAM" \
+        --cores "$CONTAINER_CPU" \
+        --memory "$CONTAINER_RAM" \
         --swap 512 \
-        --rootfs "${CONTAINER_STORAGE}:${DEFAULT_STORAGE}" \
+        --rootfs "${CONTAINER_STORAGE}:${CONTAINER_DISK}" \
         --net0 "name=eth0,bridge=${DEFAULT_BRIDGE},ip=dhcp,type=veth" \
-        --unprivileged 1 \
-        --features "nesting=1,keyctl=1" \
+        --unprivileged "$unprivileged_flag" \
+        --features "$features" \
         --onboot 0 \
-        --start 0; then
+        --start 0 &>/dev/null; then
         msg_error "Failed to create container!"
         exit 1
     fi
@@ -366,6 +459,72 @@ setup_netbird() {
     msg_ok "Netbird installed successfully"
 }
 
+# Get Netbird setup key from user
+get_setup_key() {
+    echo ""
+    echo -e "${BOLD}Netbird Setup${NC}"
+    echo "─────────────────────────────────────────"
+    echo "Enter your Netbird setup key to connect this container to your network."
+    echo "You can find this in your Netbird dashboard under Setup Keys."
+    echo ""
+
+    read -rp "Setup key: " NETBIRD_SETUP_KEY
+
+    if [[ -z "$NETBIRD_SETUP_KEY" ]]; then
+        msg_error "Setup key is required!"
+        exit 1
+    fi
+
+    msg_ok "Setup key received"
+}
+
+# Connect to Netbird and wait for confirmation
+connect_netbird() {
+    local vmid="$1"
+    local max_attempts=30
+    local attempt=1
+
+    msg_info "Connecting to Netbird network..."
+
+    # Run netbird up with the setup key
+    if ! pct exec "$vmid" -- netbird up -k "$NETBIRD_SETUP_KEY" &>/dev/null; then
+        msg_error "Failed to initiate Netbird connection!"
+        exit 1
+    fi
+
+    msg_info "Waiting for Netbird connection..."
+
+    # Wait for connection to be established
+    while [[ $attempt -le $max_attempts ]]; do
+        local status
+        status=$(pct exec "$vmid" -- netbird status 2>/dev/null || true)
+
+        if echo "$status" | grep -q "Connected"; then
+            msg_ok "Netbird connected successfully"
+
+            # Extract Netbird IP
+            NETBIRD_IP=$(echo "$status" | grep -oP 'NetBird IP:\s*\K[\d./]+' || echo "N/A")
+            NETBIRD_FQDN=$(echo "$status" | grep -oP 'FQDN:\s*\K\S+' || echo "N/A")
+
+            return 0
+        fi
+
+        sleep 2
+        ((attempt++))
+    done
+
+    msg_warn "Connection taking longer than expected. Check status with 'netbird status'"
+    NETBIRD_IP="(pending)"
+    NETBIRD_FQDN="(pending)"
+}
+
+# Get full Netbird status for display
+get_netbird_status() {
+    local vmid="$1"
+
+    NETBIRD_STATUS=$(pct exec "$vmid" -- netbird status 2>/dev/null || echo "Unable to retrieve status")
+}
+
 # Display final information
 show_completion() {
     local vmid="$1"
@@ -374,35 +533,32 @@ show_completion() {
     echo -e "${GREEN}"
     echo "╔═══════════════════════════════════════════════════════════════════╗"
     echo "║                                                                   ║"
-    echo "║              Container Created Successfully!                      ║"
+    echo "║           Netbird Container Setup Complete!                       ║"
     echo "║                                                                   ║"
     echo "╚═══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     echo ""
-    echo -e "${BOLD}Container Details:${NC}"
+    echo -e "${BOLD}Netbird Connection Status:${NC}"
     echo "─────────────────────────────────────────"
-    echo -e "  VMID:        ${CYAN}${vmid}${NC}"
+    echo -e "  Netbird IP:  ${CYAN}${NETBIRD_IP}${NC}"
+    echo -e "  FQDN:        ${CYAN}${NETBIRD_FQDN}${NC}"
     echo -e "  Hostname:    ${CYAN}${HOSTNAME}${NC}"
-    echo -e "  IP Address:  ${CYAN}${CONTAINER_IP}${NC}"
-    echo -e "  OS:          ${CYAN}Debian ${DEBIAN_VERSION}${NC}"
+    echo -e "  Container:   ${CYAN}${CONTAINER_IP}${NC}"
     echo ""
-    echo -e "${BOLD}Access your container:${NC}"
-    echo -e "  Console:     ${YELLOW}pct enter ${vmid}${NC}"
-    echo -e "  SSH:         ${YELLOW}ssh root@${CONTAINER_IP}${NC}"
+    echo -e "${BOLD}Full Netbird Status:${NC}"
+    echo "─────────────────────────────────────────"
+    echo "$NETBIRD_STATUS"
     echo ""
-    echo -e "${BOLD}Container Management:${NC}"
-    echo -e "  Start:       ${YELLOW}pct start ${vmid}${NC}"
-    echo -e "  Stop:        ${YELLOW}pct stop ${vmid}${NC}"
-    echo -e "  Destroy:     ${YELLOW}pct destroy ${vmid}${NC}"
+    echo -e "${BOLD}Netbird Commands (run inside container):${NC}"
+    echo "─────────────────────────────────────────"
+    echo -e "  ${YELLOW}netbird status${NC}          Show connection status and peers"
+    echo -e "  ${YELLOW}netbird status -d${NC}       Show detailed status with routes"
+    echo -e "  ${YELLOW}netbird down${NC}            Disconnect from Netbird network"
+    echo -e "  ${YELLOW}netbird up${NC}              Reconnect to Netbird network"
+    echo -e "  ${YELLOW}netbird ssh${NC}             SSH to a peer via Netbird"
     echo ""
-    echo -e "${BOLD}Netbird Commands:${NC}"
-    echo -e "  Status:      ${YELLOW}netbird status${NC}"
-    echo -e "  Connect:     ${YELLOW}netbird up${NC}"
-    echo -e "  Disconnect:  ${YELLOW}netbird down${NC}"
-    echo ""
-    echo -e "${BOLD}Next Steps:${NC}"
-    echo "  Netbird is installed and ready. Run 'netbird up' inside the"
-    echo "  container to connect to your Netbird network."
+    echo -e "${BOLD}Access Container:${NC}"
+    echo -e "  ${YELLOW}pct enter ${vmid}${NC}"
     echo ""
 }
 
@@ -428,27 +584,44 @@ main() {
     get_hostname
     get_password
 
-    # Get next available VMID
-    VMID=$(get_next_vmid)
+    # Get next available VMID for default suggestion
+    local next_vmid
+    next_vmid=$(get_next_vmid)
+
+    # Get advanced settings (VMID, disk, RAM, CPU, type)
+    get_advanced_settings "$next_vmid"
 
     # Show summary and confirm
-    show_summary "$VMID"
+    show_summary "$CONTAINER_VMID"
 
-    # Create container and configure for Netbird
-    create_container "$VMID"
-    configure_lxc_tun "$VMID"
+    # Create container
+    create_container "$CONTAINER_VMID"
+
+    # Configure TUN device only for unprivileged containers
+    if [[ "$CONTAINER_TYPE" == "unprivileged" ]]; then
+        configure_lxc_tun "$CONTAINER_VMID"
+    fi
 
     # Start container
-    start_container "$VMID"
+    start_container "$CONTAINER_VMID"
 
     # Get container IP
-    get_container_ip "$VMID"
+    get_container_ip "$CONTAINER_VMID"
 
     # Update container and install Netbird
-    setup_netbird "$VMID"
+    setup_netbird "$CONTAINER_VMID"
+
+    # Get Netbird setup key from user
+    get_setup_key
+
+    # Connect to Netbird and wait for confirmation
+    connect_netbird "$CONTAINER_VMID"
+
+    # Get full Netbird status for display
+    get_netbird_status "$CONTAINER_VMID"
 
     # Show completion message
-    show_completion "$VMID"
+    show_completion "$CONTAINER_VMID"
 }
 
 # Run main function
