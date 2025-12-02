@@ -37,10 +37,25 @@ The script follows a modular design with these sections:
 4. **Pre-flight Checks** (lines 73-96): `check_proxmox`, `check_root`, `get_next_vmid`
 5. **Storage Detection** (lines 99-136): `detect_storage`, `detect_template_storage`
 6. **Template Management** (lines 139-180): `download_template`
-7. **User Input** (lines 183-255): `get_hostname`, `get_password`, `show_summary`
-8. **Container Operations** (lines 258-329): `create_container`, `start_container`, `get_container_ip`
-9. **Output Display** (lines 332-363): `show_completion`
-10. **Main Execution** (lines 369-405): `main` function orchestrating all operations
+7. **User Input** (lines 183-340): `get_hostname`, `get_password`, `get_advanced_settings`, `show_summary`
+8. **Container Operations** (lines 341-441): `create_container`, `configure_lxc_tun`, `start_container`, `get_container_ip`
+9. **Netbird Setup** (lines 443-601): `setup_netbird`, `get_auth_method`, `get_setup_key`, `connect_netbird_key`, `connect_netbird_sso`, `connect_netbird`
+10. **Output Display** (lines 603-640): `get_netbird_status`, `show_completion`
+11. **Main Execution** (lines 645-710): `main` function orchestrating all operations
+
+### Authentication Methods
+
+The script supports two methods for connecting to Netbird:
+
+1. **Setup Key (default)**: Use a pre-generated setup key from the Netbird dashboard
+   - User enters the setup key
+   - User must press Enter to confirm before proceeding
+
+2. **SSO Login**: Authenticate via browser with your identity provider
+   - Script displays a login URL in the terminal
+   - User copies the URL and opens it in a browser
+   - After completing authentication, user presses Enter to continue
+   - Script then connects to the Netbird network
 
 ### Key Functions Reference
 
@@ -59,11 +74,20 @@ The script follows a modular design with these sections:
 | `download_template` | 139 | Download/verify Debian template |
 | `get_hostname` | 183 | Prompt for container hostname |
 | `get_password` | 204 | Secure password input with confirmation |
-| `show_summary` | 231 | Display configuration before creation |
-| `create_container` | 258 | Execute pct create command |
-| `start_container` | 285 | Start container and verify |
-| `get_container_ip` | 306 | Wait for and retrieve DHCP IP |
-| `show_completion` | 332 | Display final success information |
+| `get_advanced_settings` | 231 | Configure VMID, disk, RAM, CPU, container type |
+| `show_summary` | 308 | Display configuration before creation |
+| `create_container` | 341 | Execute pct create command |
+| `configure_lxc_tun` | 377 | Add TUN device config for Netbird VPN |
+| `start_container` | 396 | Start container and verify |
+| `get_container_ip` | 417 | Wait for and retrieve DHCP IP |
+| `setup_netbird` | 443 | Update packages and install Netbird |
+| `get_auth_method` | 462 | Prompt user to choose setup key or SSO login |
+| `get_setup_key` | 492 | Get setup key with Enter confirmation |
+| `connect_netbird_key` | 514 | Connect to Netbird using setup key |
+| `connect_netbird_sso` | 527 | Connect to Netbird using SSO (displays URL) |
+| `connect_netbird` | 564 | Main connection handler (routes to key/SSO) |
+| `get_netbird_status` | 603 | Retrieve full Netbird status for display |
+| `show_completion` | 609 | Display final success information |
 
 ## Development Conventions
 
