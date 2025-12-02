@@ -60,13 +60,13 @@ msg_error() {
 header() {
     clear
     echo -e "${ORANGE}"
-    echo "╔═══════════════════════════════════════════════════════════════════╗"
-    echo "║                                                                   ║"
-    echo "║           Netbird LXC Container Creation Script                   ║"
-    echo "║                     for Proxmox VE                                ║"
-    echo "║                                                                   ║"
-    echo "╚═══════════════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+    echo '  _   _      _   ____  _         _   _     __   _______ '
+    echo ' | \ | |    | | |  _ \(_)       | | | |    \ \ / / ____|'
+    echo ' |  \| | ___| |_| |_) |_ _ __ __| | | |     \ V / |     '
+    echo ' | . ` |/ _ \ __|  _ <| | '\''__/ _` | | |      > <| |     '
+    echo ' | |\  |  __/ |_| |_) | | | | (_| | | |____ / . \ |____ '
+    echo ' |_| \_|\___|\__|____/|_|_|  \__,_| |______/_/ \_\_____|'
+    echo -e "${NC} Simple and Secure Remote Access ~"
     echo ""
 }
 
@@ -183,10 +183,6 @@ download_template() {
 # Get user input for hostname
 get_hostname() {
     echo ""
-    echo -e "${BOLD}Container Configuration${NC}"
-    echo "─────────────────────────────────────────"
-    echo ""
-
     local default_hostname="netbird"
     read -rp "Enter hostname [${default_hostname}]: " HOSTNAME
     HOSTNAME="${HOSTNAME:-$default_hostname}"
@@ -311,9 +307,12 @@ get_settings_mode() {
     local next_vmid="$1"
 
     echo ""
+    echo -e "${BOLD}Container Configuration${NC}"
+    echo "─────────────────────────────────────────"
+    echo ""
     echo "Would you like to use default settings or configure advanced options?"
     echo ""
-    echo "  1) Default settings (recommended)"
+    echo "  1) Default settings"
     echo "  2) Advanced setup"
     echo ""
     read -rp "Select option [1]: " SETTINGS_CHOICE
@@ -322,6 +321,8 @@ get_settings_mode() {
     case "$SETTINGS_CHOICE" in
         1)
             SETTINGS_MODE="default"
+            HOSTNAME="netbird"
+            ROOT_PASSWORD=""
             CONTAINER_VMID="$next_vmid"
             CONTAINER_DISK="$DEFAULT_STORAGE"
             CONTAINER_RAM="$DEFAULT_RAM"
@@ -394,10 +395,16 @@ create_container() {
         features="nesting=1"
     fi
 
+    # Build password option (only if password is set)
+    local password_opt=()
+    if [[ -n "$ROOT_PASSWORD" ]]; then
+        password_opt=(--password "$ROOT_PASSWORD")
+    fi
+
     # Run pct create and suppress verbose extraction output
     if ! pct create "$vmid" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$HOSTNAME" \
-        --password "$ROOT_PASSWORD" \
+        "${password_opt[@]}" \
         --ostype debian \
         --cores "$CONTAINER_CPU" \
         --memory "$CONTAINER_RAM" \
@@ -696,16 +703,18 @@ main() {
     # Download/verify template
     download_template
 
-    # Get user configuration
-    get_hostname
-    get_password
-
     # Get next available VMID for default suggestion
     local next_vmid
     next_vmid=$(get_next_vmid)
 
     # Ask for default or advanced settings
     get_settings_mode "$next_vmid"
+
+    # Get user configuration (only for advanced mode)
+    if [[ "$SETTINGS_MODE" == "advanced" ]]; then
+        get_hostname
+        get_password
+    fi
 
     # Show summary and confirm
     show_summary "$CONTAINER_VMID"
