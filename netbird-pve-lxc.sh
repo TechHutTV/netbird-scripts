@@ -33,6 +33,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+ORANGE='\033[38;5;208m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
@@ -58,7 +59,7 @@ msg_error() {
 
 header() {
     clear
-    echo -e "${CYAN}"
+    echo -e "${ORANGE}"
     echo "╔═══════════════════════════════════════════════════════════════════╗"
     echo "║                                                                   ║"
     echo "║           Netbird LXC Container Creation Script                   ║"
