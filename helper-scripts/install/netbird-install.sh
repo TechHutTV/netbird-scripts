@@ -72,7 +72,7 @@ case "$AUTH_METHOD" in
         echo ""
 
         if [[ -z "$NETBIRD_SETUP_KEY" ]]; then
-            msg_warn "No setup key provided. Run 'netbird up' later to connect."
+            msg_warn "No setup key provided. Run 'netbird up' within the container to connect."
         else
             echo -e "Setup key: ${GN}${NETBIRD_SETUP_KEY}${CL}"
             read -rp "Press Enter to continue or Ctrl+C to cancel..."
@@ -81,7 +81,7 @@ case "$AUTH_METHOD" in
             if netbird up -k "$NETBIRD_SETUP_KEY"; then
                 msg_ok "Connected to NetBird"
             else
-                msg_warn "Connection failed. Run 'netbird up -k <key>' to retry."
+                msg_warn "Connection failed. Run 'netbird up -k <key>' within the container to retry."
             fi
         fi
         ;;
@@ -102,15 +102,15 @@ case "$AUTH_METHOD" in
         if netbird up; then
             msg_ok "Connected to NetBird"
         else
-            msg_warn "Connection failed. Run 'netbird up' to retry."
+            msg_warn "Connection failed. Run 'netbird up' within the container to retry."
         fi
         ;;
     3)
         msg_info "Skipping NetBird connection"
-        msg_ok "Run 'netbird up' to connect later"
+        msg_ok "Run 'netbird up' within the container to connect."
         ;;
     *)
-        msg_warn "Invalid selection. Run 'netbird up' to connect later."
+        msg_warn "Invalid selection. Run 'netbird up' within the container to connect."
         ;;
 esac
 
