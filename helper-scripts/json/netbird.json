@@ -33,11 +33,15 @@
   },
   "notes": [
     {
-      "text": "After installation, enter the container and run `netbird up` to connect to your network.",
+      "text": "The NetBird client (agent) allows a peer to join a pre-existing NetBird deployment. If a NetBird deployment is not yet available, there are both managed and self-hosted options available.",
+      "type": "info"
+    },    
+    {
+      "text": "After installation, enter the container and run `netbird` to to view the commands.",
       "type": "info"
     },
     {
-      "text": "Use a Setup Key from your NetBird dashboard or SSO login to authenticate.",
+      "text": "Use a Setup Key from your NetBird dashboard or SSO login to authenticate during setup or in the container.",
       "type": "info"
     },
     {
