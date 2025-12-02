@@ -31,6 +31,16 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/TechHutTV/netbird-script
 - Root access
 - Internet connection (for template download)
 
+## Testing
+
+Run the test suite directly from your Proxmox VE host:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/TechHutTV/netbird-scripts/main/testing/run-tests-remote.sh)"
+```
+
+See [testing/README.md](testing/README.md) for more details.
+
 ## License
 
 GPL-3.0
