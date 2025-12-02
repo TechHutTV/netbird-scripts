@@ -20,11 +20,22 @@ $STD apt-get install -y \
     gnupg
 msg_ok "Installed Dependencies"
 
+msg_info "Setting up NetBird Repository"
+curl -sSL https://pkgs.netbird.io/debian/public.key \
+    | gpg --dearmor -o /usr/share/keyrings/netbird-archive-keyring.gpg
+chmod 0644 /usr/share/keyrings/netbird-archive-keyring.gpg
+echo 'deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pkgs.netbird.io/debian stable main' \
+    | tee /etc/apt/sources.list.d/netbird.list > /dev/null
+$STD apt-get update
+msg_ok "Set up NetBird Repository"
+
 msg_info "Installing NetBird"
-$STD curl -fsSL https://pkgs.netbird.io/install.sh | sh
+$STD apt-get install -y netbird
 msg_ok "Installed NetBird"
 
 msg_info "Enabling NetBird Service"
+$STD netbird service install 2>/dev/null || true
+$STD netbird service start 2>/dev/null || true
 $STD systemctl enable netbird
 msg_ok "Enabled NetBird Service"
 
