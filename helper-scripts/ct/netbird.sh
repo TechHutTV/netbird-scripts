@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
+
+# Support test mode by allowing local mock to be sourced instead of remote URL
+if [[ "${TEST_MODE:-}" == "true" ]] && [[ -n "${MOCK_BUILD_FUNC:-}" ]]; then
+    source "$MOCK_BUILD_FUNC"
+else
+    source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
+fi
 # Copyright (c) 2021-2025 community-scripts ORG
 # Author: TechHutTV
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
