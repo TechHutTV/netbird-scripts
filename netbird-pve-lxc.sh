@@ -444,7 +444,7 @@ get_container_ip() {
 setup_netbird() {
     local vmid="$1"
 
-    msg_info "Updating container packages..."
+    msg_info "Updating container packages (this may take a few minutes)..."
     if ! pct exec "$vmid" -- bash -c "apt update && apt upgrade -y && apt install curl -y" &>/dev/null; then
         msg_error "Failed to update container packages!"
         exit 1
@@ -459,23 +459,106 @@ setup_netbird() {
     msg_ok "Netbird installed successfully"
 }
 
-# Get Netbird setup key from user
-get_setup_key() {
+# Get Netbird authentication method from user
+get_auth_method() {
     echo ""
     echo -e "${BOLD}Netbird Setup${NC}"
     echo "─────────────────────────────────────────"
+    echo "Choose how to connect to your Netbird network:"
+    echo ""
+    echo "  1) Setup Key (default) - Use a pre-generated setup key"
+    echo "  2) SSO Login - Authenticate via browser with your identity provider"
+    echo ""
+
+    read -rp "Select authentication method [1]: " AUTH_METHOD
+    AUTH_METHOD="${AUTH_METHOD:-1}"
+
+    case "$AUTH_METHOD" in
+        1)
+            AUTH_TYPE="setup_key"
+            get_setup_key
+            ;;
+        2)
+            AUTH_TYPE="sso"
+            msg_ok "SSO login selected"
+            ;;
+        *)
+            msg_error "Invalid selection! Choose 1 or 2."
+            exit 1
+            ;;
+    esac
+}
+
+# Get Netbird setup key from user
+get_setup_key() {
+    echo ""
     echo "Enter your Netbird setup key to connect this container to your network."
     echo "You can find this in your Netbird dashboard under Setup Keys."
     echo ""
 
     read -rp "Setup key: " NETBIRD_SETUP_KEY
+    echo ""
 
     if [[ -z "$NETBIRD_SETUP_KEY" ]]; then
         msg_error "Setup key is required!"
         exit 1
     fi
 
-    msg_ok "Setup key received"
+    # Confirm the setup key before proceeding
+    echo -e "Setup key: ${CYAN}${NETBIRD_SETUP_KEY}${NC}"
+    read -rp "Press Enter to continue or Ctrl+C to cancel..."
+
+    msg_ok "Setup key confirmed"
+}
+
+# Connect to Netbird using setup key
+connect_netbird_key() {
+    local vmid="$1"
+
+    msg_info "Connecting to Netbird network with setup key..."
+
+    # Run netbird up with the setup key
+    if ! pct exec "$vmid" -- netbird up -k "$NETBIRD_SETUP_KEY" &>/dev/null; then
+        msg_error "Failed to initiate Netbird connection!"
+        exit 1
+    fi
+}
+
+# Connect to Netbird using SSO login
+connect_netbird_sso() {
+    local vmid="$1"
+
+    echo ""
+    echo -e "${BOLD}SSO Authentication${NC}"
+    echo "─────────────────────────────────────────"
+    echo "A login URL will be displayed below."
+    echo "Copy the URL and open it in your browser to authenticate."
+    echo ""
+
+    msg_info "Starting Netbird SSO login..."
+
+    # Run netbird login and capture the URL output
+    # netbird login outputs the URL to stderr, so we capture it
+    local login_output
+    login_output=$(pct exec "$vmid" -- netbird login 2>&1) || true
+
+    # Display the URL for the user
+    echo ""
+    echo -e "${CYAN}${login_output}${NC}"
+    echo ""
+    echo "─────────────────────────────────────────"
+    echo -e "${YELLOW}Copy the URL above and open it in your browser.${NC}"
+    echo "Complete the authentication, then return here."
+    echo ""
+    read -rp "Press Enter after completing SSO authentication..."
+
+    msg_info "Connecting to Netbird network..."
+
+    # Run netbird up to establish the connection
+    if ! pct exec "$vmid" -- netbird up &>/dev/null; then
+        msg_error "Failed to connect to Netbird!"
+        exit 1
+    fi
 }
 
 # Connect to Netbird and wait for confirmation
@@ -484,12 +567,11 @@ connect_netbird() {
     local max_attempts=30
     local attempt=1
 
-    msg_info "Connecting to Netbird network..."
-
-    # Run netbird up with the setup key
-    if ! pct exec "$vmid" -- netbird up -k "$NETBIRD_SETUP_KEY" &>/dev/null; then
-        msg_error "Failed to initiate Netbird connection!"
-        exit 1
+    # Use appropriate connection method based on auth type
+    if [[ "$AUTH_TYPE" == "sso" ]]; then
+        connect_netbird_sso "$vmid"
+    else
+        connect_netbird_key "$vmid"
     fi
 
     msg_info "Waiting for Netbird connection..."
@@ -611,8 +693,8 @@ main() {
     # Update container and install Netbird
     setup_netbird "$CONTAINER_VMID"
 
-    # Get Netbird setup key from user
-    get_setup_key
+    # Get Netbird authentication method from user
+    get_auth_method
 
     # Connect to Netbird and wait for confirmation
     connect_netbird "$CONTAINER_VMID"
