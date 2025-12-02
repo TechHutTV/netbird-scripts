@@ -459,6 +459,72 @@ setup_netbird() {
     msg_ok "Netbird installed successfully"
 }
 
+# Get Netbird setup key from user
+get_setup_key() {
+    echo ""
+    echo -e "${BOLD}Netbird Setup${NC}"
+    echo "─────────────────────────────────────────"
+    echo "Enter your Netbird setup key to connect this container to your network."
+    echo "You can find this in your Netbird dashboard under Setup Keys."
+    echo ""
+
+    read -rp "Setup key: " NETBIRD_SETUP_KEY
+
+    if [[ -z "$NETBIRD_SETUP_KEY" ]]; then
+        msg_error "Setup key is required!"
+        exit 1
+    fi
+
+    msg_ok "Setup key received"
+}
+
+# Connect to Netbird and wait for confirmation
+connect_netbird() {
+    local vmid="$1"
+    local max_attempts=30
+    local attempt=1
+
+    msg_info "Connecting to Netbird network..."
+
+    # Run netbird up with the setup key
+    if ! pct exec "$vmid" -- netbird up -k "$NETBIRD_SETUP_KEY" &>/dev/null; then
+        msg_error "Failed to initiate Netbird connection!"
+        exit 1
+    fi
+
+    msg_info "Waiting for Netbird connection..."
+
+    # Wait for connection to be established
+    while [[ $attempt -le $max_attempts ]]; do
+        local status
+        status=$(pct exec "$vmid" -- netbird status 2>/dev/null || true)
+
+        if echo "$status" | grep -q "Connected"; then
+            msg_ok "Netbird connected successfully"
+
+            # Extract Netbird IP
+            NETBIRD_IP=$(echo "$status" | grep -oP 'NetBird IP:\s*\K[\d./]+' || echo "N/A")
+            NETBIRD_FQDN=$(echo "$status" | grep -oP 'FQDN:\s*\K\S+' || echo "N/A")
+
+            return 0
+        fi
+
+        sleep 2
+        ((attempt++))
+    done
+
+    msg_warn "Connection taking longer than expected. Check status with 'netbird status'"
+    NETBIRD_IP="(pending)"
+    NETBIRD_FQDN="(pending)"
+}
+
+# Get full Netbird status for display
+get_netbird_status() {
+    local vmid="$1"
+
+    NETBIRD_STATUS=$(pct exec "$vmid" -- netbird status 2>/dev/null || echo "Unable to retrieve status")
+}
+
 # Display final information
 show_completion() {
     local vmid="$1"
@@ -467,35 +533,32 @@ show_completion() {
     echo -e "${GREEN}"
     echo "╔═══════════════════════════════════════════════════════════════════╗"
     echo "║                                                                   ║"
-    echo "║              Container Created Successfully!                      ║"
+    echo "║           Netbird Container Setup Complete!                       ║"
     echo "║                                                                   ║"
     echo "╚═══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     echo ""
-    echo -e "${BOLD}Container Details:${NC}"
+    echo -e "${BOLD}Netbird Connection Status:${NC}"
     echo "─────────────────────────────────────────"
-    echo -e "  VMID:        ${CYAN}${vmid}${NC}"
+    echo -e "  Netbird IP:  ${CYAN}${NETBIRD_IP}${NC}"
+    echo -e "  FQDN:        ${CYAN}${NETBIRD_FQDN}${NC}"
     echo -e "  Hostname:    ${CYAN}${HOSTNAME}${NC}"
-    echo -e "  IP Address:  ${CYAN}${CONTAINER_IP}${NC}"
-    echo -e "  OS:          ${CYAN}Debian ${DEBIAN_VERSION}${NC}"
+    echo -e "  Container:   ${CYAN}${CONTAINER_IP}${NC}"
     echo ""
-    echo -e "${BOLD}Access your container:${NC}"
-    echo -e "  Console:     ${YELLOW}pct enter ${vmid}${NC}"
-    echo -e "  SSH:         ${YELLOW}ssh root@${CONTAINER_IP}${NC}"
+    echo -e "${BOLD}Full Netbird Status:${NC}"
+    echo "─────────────────────────────────────────"
+    echo "$NETBIRD_STATUS"
     echo ""
-    echo -e "${BOLD}Container Management:${NC}"
-    echo -e "  Start:       ${YELLOW}pct start ${vmid}${NC}"
-    echo -e "  Stop:        ${YELLOW}pct stop ${vmid}${NC}"
-    echo -e "  Destroy:     ${YELLOW}pct destroy ${vmid}${NC}"
+    echo -e "${BOLD}Netbird Commands (run inside container):${NC}"
+    echo "─────────────────────────────────────────"
+    echo -e "  ${YELLOW}netbird status${NC}          Show connection status and peers"
+    echo -e "  ${YELLOW}netbird status -d${NC}       Show detailed status with routes"
+    echo -e "  ${YELLOW}netbird down${NC}            Disconnect from Netbird network"
+    echo -e "  ${YELLOW}netbird up${NC}              Reconnect to Netbird network"
+    echo -e "  ${YELLOW}netbird ssh${NC}             SSH to a peer via Netbird"
     echo ""
-    echo -e "${BOLD}Netbird Commands:${NC}"
-    echo -e "  Status:      ${YELLOW}netbird status${NC}"
-    echo -e "  Connect:     ${YELLOW}netbird up${NC}"
-    echo -e "  Disconnect:  ${YELLOW}netbird down${NC}"
-    echo ""
-    echo -e "${BOLD}Next Steps:${NC}"
-    echo "  Netbird is installed and ready. Run 'netbird up' inside the"
-    echo "  container to connect to your Netbird network."
+    echo -e "${BOLD}Access Container:${NC}"
+    echo -e "  ${YELLOW}pct enter ${vmid}${NC}"
     echo ""
 }
 
@@ -547,6 +610,15 @@ main() {
 
     # Update container and install Netbird
     setup_netbird "$CONTAINER_VMID"
+
+    # Get Netbird setup key from user
+    get_setup_key
+
+    # Connect to Netbird and wait for confirmation
+    connect_netbird "$CONTAINER_VMID"
+
+    # Get full Netbird status for display
+    get_netbird_status "$CONTAINER_VMID"
 
     # Show completion message
     show_completion "$CONTAINER_VMID"
