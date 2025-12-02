@@ -312,7 +312,7 @@ get_settings_mode() {
     echo ""
     echo "Would you like to use default settings or configure advanced options?"
     echo ""
-    echo "  1) Default settings (recommended)"
+    echo "  1) Default settings"
     echo "  2) Advanced setup"
     echo ""
     read -rp "Select option [1]: " SETTINGS_CHOICE
@@ -321,6 +321,8 @@ get_settings_mode() {
     case "$SETTINGS_CHOICE" in
         1)
             SETTINGS_MODE="default"
+            HOSTNAME="netbird"
+            ROOT_PASSWORD=""
             CONTAINER_VMID="$next_vmid"
             CONTAINER_DISK="$DEFAULT_STORAGE"
             CONTAINER_RAM="$DEFAULT_RAM"
@@ -393,10 +395,16 @@ create_container() {
         features="nesting=1"
     fi
 
+    # Build password option (only if password is set)
+    local password_opt=()
+    if [[ -n "$ROOT_PASSWORD" ]]; then
+        password_opt=(--password "$ROOT_PASSWORD")
+    fi
+
     # Run pct create and suppress verbose extraction output
     if ! pct create "$vmid" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$HOSTNAME" \
-        --password "$ROOT_PASSWORD" \
+        "${password_opt[@]}" \
         --ostype debian \
         --cores "$CONTAINER_CPU" \
         --memory "$CONTAINER_RAM" \
@@ -702,9 +710,11 @@ main() {
     # Ask for default or advanced settings
     get_settings_mode "$next_vmid"
 
-    # Get user configuration
-    get_hostname
-    get_password
+    # Get user configuration (only for advanced mode)
+    if [[ "$SETTINGS_MODE" == "advanced" ]]; then
+        get_hostname
+        get_password
+    fi
 
     # Show summary and confirm
     show_summary "$CONTAINER_VMID"
