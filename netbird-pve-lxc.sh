@@ -488,23 +488,52 @@ get_container_ip() {
     CONTAINER_IP="(pending DHCP)"
 }
 
-# Update container and install Netbird
+# Update container and install Netbird using apt
 setup_netbird() {
     local vmid="$1"
 
     msg_info "Updating container packages (this may take a few minutes)..."
-    if ! pct exec "$vmid" -- bash -c "apt update && apt upgrade -y && apt install curl -y" &>/dev/null; then
+    if ! pct exec "$vmid" -- bash -c "apt-get update && apt-get upgrade -y" &>/dev/null; then
         msg_error "Failed to update container packages!"
         exit 1
     fi
     msg_ok "Container packages updated"
 
-    msg_info "Installing Netbird..."
-    if ! pct exec "$vmid" -- bash -c "curl -fsSL https://pkgs.netbird.io/install.sh | sh" &>/dev/null; then
-        msg_error "Failed to install Netbird!"
+    msg_info "Installing dependencies..."
+    if ! pct exec "$vmid" -- bash -c "apt-get install -y ca-certificates curl gnupg" &>/dev/null; then
+        msg_error "Failed to install dependencies!"
         exit 1
     fi
-    msg_ok "Netbird installed successfully"
+    msg_ok "Dependencies installed"
+
+    msg_info "Adding NetBird repository..."
+    # Add NetBird GPG key
+    if ! pct exec "$vmid" -- bash -c "curl -sSL https://pkgs.netbird.io/debian/public.key | gpg --dearmor -o /usr/share/keyrings/netbird-archive-keyring.gpg && chmod 0644 /usr/share/keyrings/netbird-archive-keyring.gpg" &>/dev/null; then
+        msg_error "Failed to add NetBird GPG key!"
+        exit 1
+    fi
+
+    # Add NetBird apt repository
+    if ! pct exec "$vmid" -- bash -c "echo 'deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pkgs.netbird.io/debian stable main' | tee /etc/apt/sources.list.d/netbird.list" &>/dev/null; then
+        msg_error "Failed to add NetBird repository!"
+        exit 1
+    fi
+    msg_ok "NetBird repository added"
+
+    msg_info "Installing NetBird..."
+    if ! pct exec "$vmid" -- bash -c "apt-get update && apt-get install -y netbird" &>/dev/null; then
+        msg_error "Failed to install NetBird!"
+        exit 1
+    fi
+
+    # Save installation method to config
+    pct exec "$vmid" -- bash -c "mkdir -p /etc/netbird && echo 'package_manager=apt' > /etc/netbird/install.conf" &>/dev/null || true
+    msg_ok "NetBird installed successfully"
+
+    msg_info "Starting NetBird service..."
+    # Install and start the service
+    pct exec "$vmid" -- bash -c "netbird service install 2>/dev/null || true; netbird service start 2>/dev/null || true" &>/dev/null
+    msg_ok "NetBird service started"
 }
 
 # Get Netbird authentication method from user
