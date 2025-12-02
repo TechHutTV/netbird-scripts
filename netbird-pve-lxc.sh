@@ -227,9 +227,93 @@ get_password() {
     msg_ok "Root password set"
 }
 
+# Get advanced container settings
+get_advanced_settings() {
+    local next_vmid="$1"
+
+    echo ""
+    echo -e "${BOLD}Advanced Settings${NC}"
+    echo "─────────────────────────────────────────"
+    echo "Press Enter to accept defaults shown in brackets."
+    echo ""
+
+    # VMID
+    read -rp "VMID [${next_vmid}]: " input_vmid
+    CONTAINER_VMID="${input_vmid:-$next_vmid}"
+
+    # Validate VMID is a number
+    if [[ ! "$CONTAINER_VMID" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid VMID! Must be a number."
+        exit 1
+    fi
+
+    # Check if VMID is already in use
+    if pct status "$CONTAINER_VMID" &>/dev/null; then
+        msg_error "VMID ${CONTAINER_VMID} is already in use!"
+        exit 1
+    fi
+
+    # Disk size
+    read -rp "Disk size in GB [${DEFAULT_STORAGE}]: " input_disk
+    CONTAINER_DISK="${input_disk:-$DEFAULT_STORAGE}"
+
+    if [[ ! "$CONTAINER_DISK" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid disk size! Must be a number."
+        exit 1
+    fi
+
+    # RAM
+    read -rp "RAM in MB [${DEFAULT_RAM}]: " input_ram
+    CONTAINER_RAM="${input_ram:-$DEFAULT_RAM}"
+
+    if [[ ! "$CONTAINER_RAM" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid RAM size! Must be a number."
+        exit 1
+    fi
+
+    # CPU cores
+    read -rp "CPU cores [${DEFAULT_CPU}]: " input_cpu
+    CONTAINER_CPU="${input_cpu:-$DEFAULT_CPU}"
+
+    if [[ ! "$CONTAINER_CPU" =~ ^[0-9]+$ ]]; then
+        msg_error "Invalid CPU count! Must be a number."
+        exit 1
+    fi
+
+    # Container type
+    echo ""
+    echo "Container type:"
+    echo "  1) Unprivileged (recommended, more secure)"
+    echo "  2) Privileged (less secure, but simpler device access)"
+    read -rp "Select type [1]: " input_type
+    input_type="${input_type:-1}"
+
+    case "$input_type" in
+        1)
+            CONTAINER_TYPE="unprivileged"
+            ;;
+        2)
+            CONTAINER_TYPE="privileged"
+            ;;
+        *)
+            msg_error "Invalid selection! Choose 1 or 2."
+            exit 1
+            ;;
+    esac
+
+    echo ""
+    msg_ok "Advanced settings configured"
+}
+
 # Display configuration summary
 show_summary() {
     local vmid="$1"
+
+    # Format container type for display
+    local type_display="Unprivileged"
+    if [[ "$CONTAINER_TYPE" == "privileged" ]]; then
+        type_display="Privileged"
+    fi
 
     echo ""
     echo -e "${BOLD}Configuration Summary${NC}"
@@ -237,11 +321,11 @@ show_summary() {
     echo -e "  VMID:        ${CYAN}${vmid}${NC}"
     echo -e "  Hostname:    ${CYAN}${HOSTNAME}${NC}"
     echo -e "  OS:          ${CYAN}Debian ${DEBIAN_VERSION}${NC}"
-    echo -e "  Storage:     ${CYAN}${DEFAULT_STORAGE} GB${NC}"
-    echo -e "  RAM:         ${CYAN}${DEFAULT_RAM} MB${NC}"
-    echo -e "  CPU:         ${CYAN}${DEFAULT_CPU} core(s)${NC}"
+    echo -e "  Disk:        ${CYAN}${CONTAINER_DISK} GB${NC}"
+    echo -e "  RAM:         ${CYAN}${CONTAINER_RAM} MB${NC}"
+    echo -e "  CPU:         ${CYAN}${CONTAINER_CPU} core(s)${NC}"
     echo -e "  Network:     ${CYAN}DHCP (${DEFAULT_BRIDGE})${NC}"
-    echo -e "  Type:        ${CYAN}Unprivileged${NC}"
+    echo -e "  Type:        ${CYAN}${type_display}${NC}"
     echo "═════════════════════════════════════════"
     echo ""
 
@@ -260,20 +344,29 @@ create_container() {
 
     msg_info "Creating LXC container (VMID: ${vmid})..."
 
-    # Build the pct create command
+    # Build the pct create command based on container type
+    local unprivileged_flag="1"
+    local features="nesting=1,keyctl=1"
+
+    if [[ "$CONTAINER_TYPE" == "privileged" ]]; then
+        unprivileged_flag="0"
+        features="nesting=1"
+    fi
+
+    # Run pct create and suppress verbose extraction output
     if ! pct create "$vmid" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$HOSTNAME" \
         --password "$ROOT_PASSWORD" \
         --ostype debian \
-        --cores "$DEFAULT_CPU" \
-        --memory "$DEFAULT_RAM" \
+        --cores "$CONTAINER_CPU" \
+        --memory "$CONTAINER_RAM" \
         --swap 512 \
-        --rootfs "${CONTAINER_STORAGE}:${DEFAULT_STORAGE}" \
+        --rootfs "${CONTAINER_STORAGE}:${CONTAINER_DISK}" \
         --net0 "name=eth0,bridge=${DEFAULT_BRIDGE},ip=dhcp,type=veth" \
-        --unprivileged 1 \
-        --features "nesting=1,keyctl=1" \
+        --unprivileged "$unprivileged_flag" \
+        --features "$features" \
         --onboot 0 \
-        --start 0; then
+        --start 0 &>/dev/null; then
         msg_error "Failed to create container!"
         exit 1
     fi
@@ -428,27 +521,35 @@ main() {
     get_hostname
     get_password
 
-    # Get next available VMID
-    VMID=$(get_next_vmid)
+    # Get next available VMID for default suggestion
+    local next_vmid
+    next_vmid=$(get_next_vmid)
+
+    # Get advanced settings (VMID, disk, RAM, CPU, type)
+    get_advanced_settings "$next_vmid"
 
     # Show summary and confirm
-    show_summary "$VMID"
+    show_summary "$CONTAINER_VMID"
 
-    # Create container and configure for Netbird
-    create_container "$VMID"
-    configure_lxc_tun "$VMID"
+    # Create container
+    create_container "$CONTAINER_VMID"
+
+    # Configure TUN device only for unprivileged containers
+    if [[ "$CONTAINER_TYPE" == "unprivileged" ]]; then
+        configure_lxc_tun "$CONTAINER_VMID"
+    fi
 
     # Start container
-    start_container "$VMID"
+    start_container "$CONTAINER_VMID"
 
     # Get container IP
-    get_container_ip "$VMID"
+    get_container_ip "$CONTAINER_VMID"
 
     # Update container and install Netbird
-    setup_netbird "$VMID"
+    setup_netbird "$CONTAINER_VMID"
 
     # Show completion message
-    show_completion "$VMID"
+    show_completion "$CONTAINER_VMID"
 }
 
 # Run main function
