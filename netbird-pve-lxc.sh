@@ -305,6 +305,40 @@ get_advanced_settings() {
     msg_ok "Advanced settings configured"
 }
 
+# Ask user for default or advanced settings
+get_settings_mode() {
+    local next_vmid="$1"
+
+    echo ""
+    echo "Would you like to use default settings or configure advanced options?"
+    echo ""
+    echo "  1) Default settings (recommended)"
+    echo "  2) Advanced setup"
+    echo ""
+    read -rp "Select option [1]: " SETTINGS_CHOICE
+    SETTINGS_CHOICE="${SETTINGS_CHOICE:-1}"
+
+    case "$SETTINGS_CHOICE" in
+        1)
+            SETTINGS_MODE="default"
+            CONTAINER_VMID="$next_vmid"
+            CONTAINER_DISK="$DEFAULT_STORAGE"
+            CONTAINER_RAM="$DEFAULT_RAM"
+            CONTAINER_CPU="$DEFAULT_CPU"
+            CONTAINER_TYPE="unprivileged"
+            msg_ok "Using default settings"
+            ;;
+        2)
+            SETTINGS_MODE="advanced"
+            get_advanced_settings "$next_vmid"
+            ;;
+        *)
+            msg_error "Invalid selection! Choose 1 or 2."
+            exit 1
+            ;;
+    esac
+}
+
 # Display configuration summary
 show_summary() {
     local vmid="$1"
@@ -315,8 +349,14 @@ show_summary() {
         type_display="Privileged"
     fi
 
+    # Format settings mode for display
+    local settings_display="default"
+    if [[ "$SETTINGS_MODE" == "advanced" ]]; then
+        settings_display="advanced setup"
+    fi
+
     echo ""
-    echo -e "${BOLD}Configuration Summary${NC}"
+    echo -e "${BOLD}Configuration Summary (${settings_display})${NC}"
     echo "═════════════════════════════════════════"
     echo -e "  VMID:        ${CYAN}${vmid}${NC}"
     echo -e "  Hostname:    ${CYAN}${HOSTNAME}${NC}"
@@ -670,8 +710,8 @@ main() {
     local next_vmid
     next_vmid=$(get_next_vmid)
 
-    # Get advanced settings (VMID, disk, RAM, CPU, type)
-    get_advanced_settings "$next_vmid"
+    # Ask for default or advanced settings
+    get_settings_mode "$next_vmid"
 
     # Show summary and confirm
     show_summary "$CONTAINER_VMID"
