@@ -36,7 +36,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/TechHutTV/netbird-script
 Run the test suite directly from your Proxmox VE host:
 
 ```bash
-git clone --depth 1 https://github.com/TechHutTV/netbird-scripts.git /tmp/netbird-scripts && /tmp/netbird-scripts/testing/run-tests.sh -v; rm -rf /tmp/netbird-scripts
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/TechHutTV/netbird-scripts/main/testing/run-tests-remote.sh)"
 ```
 
 See [testing/README.md](testing/README.md) for more details.
