@@ -183,10 +183,6 @@ download_template() {
 # Get user input for hostname
 get_hostname() {
     echo ""
-    echo -e "${BOLD}Container Configuration${NC}"
-    echo "─────────────────────────────────────────"
-    echo ""
-
     local default_hostname="netbird"
     read -rp "Enter hostname [${default_hostname}]: " HOSTNAME
     HOSTNAME="${HOSTNAME:-$default_hostname}"
@@ -310,6 +306,9 @@ get_advanced_settings() {
 get_settings_mode() {
     local next_vmid="$1"
 
+    echo ""
+    echo -e "${BOLD}Container Configuration${NC}"
+    echo "─────────────────────────────────────────"
     echo ""
     echo "Would you like to use default settings or configure advanced options?"
     echo ""
@@ -696,16 +695,16 @@ main() {
     # Download/verify template
     download_template
 
-    # Get user configuration
-    get_hostname
-    get_password
-
     # Get next available VMID for default suggestion
     local next_vmid
     next_vmid=$(get_next_vmid)
 
     # Ask for default or advanced settings
     get_settings_mode "$next_vmid"
+
+    # Get user configuration
+    get_hostname
+    get_password
 
     # Show summary and confirm
     show_summary "$CONTAINER_VMID"
