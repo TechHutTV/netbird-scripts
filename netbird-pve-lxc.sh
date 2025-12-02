@@ -281,6 +281,25 @@ create_container() {
     msg_ok "Container created successfully"
 }
 
+# Configure LXC for TUN device support (required for Netbird VPN)
+configure_lxc_tun() {
+    local vmid="$1"
+    local config_file="/etc/pve/lxc/${vmid}.conf"
+
+    msg_info "Configuring TUN device support for Netbird..."
+
+    # Add LXC config entries for TUN device
+    {
+        echo ""
+        echo "# Netbird TUN device configuration"
+        echo "lxc.cgroup2.devices.allow: c 10:200 rwm"
+        echo "lxc.mount.entry: /dev/net dev/net none bind,create=dir"
+        echo "lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file"
+    } >> "$config_file"
+
+    msg_ok "TUN device configuration added"
+}
+
 # Start the container
 start_container() {
     local vmid="$1"
@@ -328,6 +347,25 @@ get_container_ip() {
     CONTAINER_IP="(pending DHCP)"
 }
 
+# Update container and install Netbird
+setup_netbird() {
+    local vmid="$1"
+
+    msg_info "Updating container packages..."
+    if ! pct exec "$vmid" -- bash -c "apt update && apt upgrade -y && apt install curl -y" &>/dev/null; then
+        msg_error "Failed to update container packages!"
+        exit 1
+    fi
+    msg_ok "Container packages updated"
+
+    msg_info "Installing Netbird..."
+    if ! pct exec "$vmid" -- bash -c "curl -fsSL https://pkgs.netbird.io/install.sh | sh" &>/dev/null; then
+        msg_error "Failed to install Netbird!"
+        exit 1
+    fi
+    msg_ok "Netbird installed successfully"
+}
+
 # Display final information
 show_completion() {
     local vmid="$1"
@@ -357,8 +395,14 @@ show_completion() {
     echo -e "  Stop:        ${YELLOW}pct stop ${vmid}${NC}"
     echo -e "  Destroy:     ${YELLOW}pct destroy ${vmid}${NC}"
     echo ""
+    echo -e "${BOLD}Netbird Commands:${NC}"
+    echo -e "  Status:      ${YELLOW}netbird status${NC}"
+    echo -e "  Connect:     ${YELLOW}netbird up${NC}"
+    echo -e "  Disconnect:  ${YELLOW}netbird down${NC}"
+    echo ""
     echo -e "${BOLD}Next Steps:${NC}"
-    echo "  The container is ready for Netbird installation."
+    echo "  Netbird is installed and ready. Run 'netbird up' inside the"
+    echo "  container to connect to your Netbird network."
     echo ""
 }
 
@@ -390,12 +434,18 @@ main() {
     # Show summary and confirm
     show_summary "$VMID"
 
-    # Create and start container
+    # Create container and configure for Netbird
     create_container "$VMID"
+    configure_lxc_tun "$VMID"
+
+    # Start container
     start_container "$VMID"
 
     # Get container IP
     get_container_ip "$VMID"
+
+    # Update container and install Netbird
+    setup_netbird "$VMID"
 
     # Show completion message
     show_completion "$VMID"
