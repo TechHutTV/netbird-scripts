@@ -1,0 +1,7 @@
+# Ignore actual configuration files (contain secrets)
+# Only example files should be committed
+.env
+dashboard.env
+relay.env
+turnserver.conf
+management.json

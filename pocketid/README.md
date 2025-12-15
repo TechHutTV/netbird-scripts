@@ -38,13 +38,17 @@ Create the following DNS A records pointing to your server IP:
 # Navigate to the pocketid directory
 cd pocketid
 
-# Copy example environment files
+# Copy all example configuration files
 cp .env.example .env
+cp dashboard.env.example dashboard.env
+cp relay.env.example relay.env
+cp turnserver.conf.example turnserver.conf
+cp management.json.example management.json
 ```
 
-### Step 2: Create Configuration Files
+### Step 2: Update Configuration Files
 
-Create the following configuration files:
+Update the following configuration files with your domain and secrets:
 
 #### `.env` (Main environment variables)
 
@@ -343,13 +347,18 @@ docker compose logs -f pocketid
 
 ```
 pocketid/
-├── compose.yaml        # Docker Compose configuration
-├── README.md           # This file
-├── .env                # Environment variables
-├── dashboard.env       # NetBird Dashboard configuration
-├── relay.env           # NetBird Relay configuration
-├── turnserver.conf     # Coturn TURN server configuration
-└── management.json     # NetBird Management configuration
+├── compose.yaml              # Docker Compose configuration
+├── README.md                 # This file
+├── .env.example              # Example environment variables
+├── .env                      # Environment variables (create from example)
+├── dashboard.env.example     # Example NetBird Dashboard configuration
+├── dashboard.env             # NetBird Dashboard configuration (create from example)
+├── relay.env.example         # Example NetBird Relay configuration
+├── relay.env                 # NetBird Relay configuration (create from example)
+├── turnserver.conf.example   # Example Coturn TURN server configuration
+├── turnserver.conf           # Coturn TURN server configuration (create from example)
+├── management.json.example   # Example NetBird Management configuration
+└── management.json           # NetBird Management configuration (create from example)
 ```
 
 ## References
